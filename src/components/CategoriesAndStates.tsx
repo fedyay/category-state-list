@@ -10,6 +10,7 @@ import {
   Grid,
   Paper,
 } from "@mui/material";
+import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 
 interface State {
   id: number;
@@ -115,8 +116,7 @@ const CategoriesAndStates: React.FC = () => {
 
   useEffect(() => {
     if (selectedCategory) {
-      const sorted = sortById(selectedCategory.states);
-      setSortedStates(sorted);
+      setSortedStates(selectedCategory.states);
     }
   }, [selectedCategory]);
 
@@ -177,12 +177,16 @@ const CategoriesAndStates: React.FC = () => {
 
       setCategories(updatedCategories);
       setSelectedStates([]);
-      setSortedStates(
-        sortById(
-          updatedCategories.find((cat) => cat.id === selectedCategoryId)
-            ?.states || []
-        )
+
+      const movedCategory = updatedCategories.find(
+        (cat) => cat.id === targetCategoryId
       );
+      if (movedCategory) {
+        setSelectedCategory(movedCategory);
+        setSelectedCategoryId(targetCategoryId);
+      }
+
+      setSortedStates(movedCategory?.states || []);
     }
   };
 
@@ -204,6 +208,30 @@ const CategoriesAndStates: React.FC = () => {
     const category =
       categories.find((cat) => cat.id === targetCategoryId) || null;
     setSelectedMoveCategory(category);
+  };
+
+  const handleDragEnd = (result: any) => {
+    if (!result.destination) {
+      return;
+    }
+
+    const newSortedStates = Array.from(sortedStates);
+    const [movedState] = newSortedStates.splice(result.source.index, 1);
+    newSortedStates.splice(result.destination.index, 0, movedState);
+
+    setSortedStates(newSortedStates);
+
+    const updatedCategories = categories.map((cat) => {
+      if (cat.id === selectedCategoryId) {
+        return {
+          ...cat,
+          states: newSortedStates,
+        };
+      }
+      return cat;
+    });
+
+    setCategories(updatedCategories);
   };
 
   return (
@@ -356,47 +384,70 @@ const CategoriesAndStates: React.FC = () => {
           {selectedCategory ? (
             <div>
               {sortedStates.length > 0 ? (
-                <List dense>
-                  {sortedStates.map((state) => (
-                    <ListItem key={state.id}>
-                      <Checkbox
-                        checked={selectedStates.includes(state)}
-                        onChange={() => toggleStateSelection(state)}
-                      />
-                      <div
-                        style={{
-                          width: "16px",
-                          height: "16px",
-                          borderRadius: "50%",
-                          marginRight: "10px",
-                          backgroundColor: state.color,
-                          border: state.frameColor
-                            ? `2px solid ${state.frameColor}`
-                            : "none",
-                        }}
-                      />
-                      <ListItemText primary={state.name} />
-                      <ListItemSecondaryAction>
-                        <Typography
-                          variant="body2"
-                          style={{ marginRight: "10px" }}
-                        >
-                          id: {state.id}
-                        </Typography>
-                      </ListItemSecondaryAction>
-                    </ListItem>
-                  ))}
-                  {selectedStates.length > 0 && (
-                    <Button
-                      variant="contained"
-                      color="primary"
-                      onClick={handleMoveStates}
-                      style={{ marginTop: "10px" }}
-                    >
-                      Move Selected States
-                    </Button>
-                  )}
-                </List>
+                <DragDropContext onDragEnd={handleDragEnd}>
+                  <Droppable droppableId="state-list" type="STATES">
+                    {(provided) => (
+                      <List
+                        dense
+                        {...provided.droppableProps}
+                        ref={provided.innerRef}
+                      >
+                        {sortedStates.map((state, index) => (
+                          <Draggable
+                            key={state.id}
+                            draggableId={state.id.toString()}
+                            index={index}
+                          >
+                            {(provided) => (
+                              <ListItem
+                                ref={provided.innerRef}
+                                {...provided.draggableProps}
+                                {...provided.dragHandleProps}
+                              >
+                                <Checkbox
+                                  checked={selectedStates.includes(state)}
+                                  onChange={() => toggleStateSelection(state)}
+                                />
+                                <div
+                                  style={{
+                                    width: "16px",
+                                    height: "16px",
+                                    borderRadius: "50%",
+                                    marginRight: "10px",
+                                    backgroundColor: state.color,
+                                    border: state.frameColor
+                                      ? `2px solid ${state.frameColor}`
+                                      : "none",
+                                  }}
+                                />
+                                <ListItemText primary={state.name} />
+                                <ListItemSecondaryAction>
+                                  <Typography
+                                    variant="body2"
+                                    style={{ marginRight: "10px" }}
+                                  >
+                                    id: {state.id}
+                                  </Typography>
+                                </ListItemSecondaryAction>
+                              </ListItem>
+                            )}
+                          </Draggable>
+                        ))}
+                        {provided.placeholder}
+                        {selectedStates.length > 0 && (
+                          <Button
+                            variant="contained"
+                            color="primary"
+                            onClick={handleMoveStates}
+                            style={{ marginTop: "10px" }}
+                          >
+                            Move Selected States
+                          </Button>
+                        )}
+                      </List>
+                    )}
+                  </Droppable>
+                </DragDropContext>
               ) : (
                 <Typography variant="body1">
                   This category has no states.
